@@ -594,9 +594,9 @@
         <div class="field">
           <div class="label">状態</div>
           <select class="select" data-k="status">
-            <option value="todo" ${t.status==="todo"?"selected":""}>ToDo</option>
-            <option value="doing" ${t.status==="doing"?"selected":""}>Doing</option>
-            <option value="done" ${t.status==="done"?"selected":""}>Done</option>
+            <option value="todo" ${t.status==="todo"?"selected":""}>未着手</option>
+            <option value="doing" ${t.status==="doing"?"selected":""}>進行中</option>
+            <option value="done" ${t.status==="done"?"selected":""}>完了</option>
           </select>
         </div>
         <div class="field">
@@ -1028,6 +1028,18 @@ $("#btnClearAll").addEventListener("click", () => {
         </div>
 
         <div class="field" style="margin-top:10px;">
+          <div class="label">カテゴリ（プリセット）</div>
+          <div id="qaCats" style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button class="smallbtn" type="button" data-qacat="">INBOX</button>
+            ${state.categories.map(c=>`<button class="smallbtn" type="button" data-qacat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("")}
+          </div>
+          <div style="color:var(--muted);font-size:12px;margin-top:6px;">
+            ※あとで編集で変更もできます
+          </div>
+        </div>
+
+
+        <div class="field" style="margin-top:10px;">
           <div class="label">タイトル（これだけで保存OK）</div>
           <input class="input" id="qaTitle" placeholder="例：CSV更新 / 記事メモ / 返信" />
         </div>
@@ -1055,6 +1067,19 @@ $("#btnClearAll").addEventListener("click", () => {
         });
       });
 
+      let catPreset = ""; // "" means INBOX
+      ui.sheetContent.querySelectorAll("[data-qacat]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          catPreset = btn.getAttribute("data-qacat") || "";
+          ui.sheetContent.querySelectorAll("[data-qacat]").forEach(b => b.style.outline = "");
+          btn.style.outline = "2px solid rgba(37,99,235,.35)";
+        });
+      });
+
+      // default highlight INBOX
+      const inboxBtn = ui.sheetContent.querySelector('[data-qacat=""]');
+      if(inboxBtn){ inboxBtn.style.outline = "2px solid rgba(37,99,235,.35)"; }
+
       $("#qaSave").addEventListener("click", () => {
         const title = (input.value || "").trim();
         if(!title){ alert("タイトルを入力してください"); return; }
@@ -1068,7 +1093,8 @@ $("#btnClearAll").addEventListener("click", () => {
         }else if(preset === "nodate"){
           dueDate = "";
         }
-        addTask({ title, dueDate });
+
+        addTask({ title, dueDate, category: catPreset });
         // detail opens automatically
       });
       return;
