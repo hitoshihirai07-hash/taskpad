@@ -1,39 +1,39 @@
 /* TaskPad - minimal, responsive, vanilla CSS */
 :root{
-  --bg:#0b0f14;
-  --panel:#121826;
-  --panel2:#0f1522;
-  --text:#e8eefc;
-  --muted:#9fb0d0;
-  --line:rgba(255,255,255,.08);
-  --primary:#4ea1ff;
-  --danger:#ff5b6c;
-  --amber:#ffb020;
-  --ok:#37d67a;
+  --bg:#f6f8ff;
+  --panel:#ffffff;
+  --panel2:#f3f6ff;
+  --text:#0f172a;
+  --muted:#475569;
+  --line:rgba(15,23,42,.12);
+  --primary:#2563eb;
+  --danger:#ef4444;
+  --amber:#f59e0b;
+  --ok:#16a34a;
 
   --radius:14px;
-  --shadow: 0 10px 30px rgba(0,0,0,.35);
+  --shadow: 0 10px 26px rgba(15,23,42,.10);
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
 }
-
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
   margin:0;
   font-family:var(--font);
   color:var(--text);
-  background: radial-gradient(1200px 600px at 20% -10%, rgba(78,161,255,.25), transparent 60%),
-              radial-gradient(900px 450px at 100% 0%, rgba(255,176,32,.18), transparent 55%),
-              var(--bg);
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(37,99,235,.18), transparent 60%),
+    radial-gradient(900px 450px at 100% 0%, rgba(245,158,11,.14), transparent 55%),
+    radial-gradient(700px 420px at 40% 110%, rgba(22,163,74,.10), transparent 60%),
+    var(--bg);
 }
-
 #app{min-height:100%; display:flex; flex-direction:column}
 
 .topbar{
   position:sticky; top:0; z-index:20;
   display:flex; align-items:center; justify-content:space-between;
   padding:14px 16px;
-  background: rgba(11,15,20,.7);
+  background: rgba(246,248,255,.85);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }
@@ -43,18 +43,18 @@ body{
 .topbar__actions{display:flex; gap:10px; align-items:center}
 .search{
   width:min(38vw, 460px);
-  background: rgba(255,255,255,.06);
+  background: rgba(255,255,255,.95);
   border: 1px solid var(--line);
   color: var(--text);
   padding:10px 12px;
   border-radius: 999px;
   outline:none;
 }
-.search::placeholder{color:rgba(159,176,208,.75)}
+.search::placeholder{color:rgba(71,85,105,.65)}
 
 .btn{
   border:1px solid var(--line);
-  background: rgba(255,255,255,.06);
+  background: rgba(15,23,42,.03);
   color: var(--text);
   padding:10px 12px;
   border-radius: 999px;
@@ -62,13 +62,13 @@ body{
 }
 .btn:hover{filter:brightness(1.1)}
 .btn--primary{
-  border-color: rgba(78,161,255,.35);
-  background: rgba(78,161,255,.18);
+  border-color: rgba(37,99,235,.35);
+  background: rgba(37,99,235,.12);
 }
 .btn--ghost{background:transparent}
 .btn--danger{
-  border-color: rgba(255,91,108,.35);
-  background: rgba(255,91,108,.14);
+  border-color: rgba(239,68,68,.30);
+  background: rgba(239,68,68,.10);
 }
 
 .layout{
@@ -82,7 +82,7 @@ body{
 .sidebar{
   border:1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(18,24,38,.7);
+  background: rgba(255,255,255,.82);
   box-shadow: var(--shadow);
   padding: 10px;
   height: calc(100vh - 92px);
@@ -107,8 +107,8 @@ body{
 }
 .navbtn:hover{background: rgba(255,255,255,.05)}
 .navbtn.is-active{
-  background: rgba(78,161,255,.16);
-  border-color: rgba(78,161,255,.25);
+  background: rgba(37,99,235,.10);
+  border-color: rgba(37,99,235,.25);
 }
 .badge{
   font-size:12px;
@@ -133,7 +133,7 @@ body{
 .main{
   border:1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(18,24,38,.55);
+  background: rgba(255,255,255,.70);
   box-shadow: var(--shadow);
   overflow:hidden;
 }
@@ -144,11 +144,11 @@ body{
   padding: 8px 10px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.06);
+  background: rgba(15,23,42,.03);
   cursor:pointer;
 }
-.pill--danger{border-color: rgba(255,91,108,.35); background: rgba(255,91,108,.14)}
-.pill--amber{border-color: rgba(255,176,32,.35); background: rgba(255,176,32,.14)}
+.pill--danger{border-color: rgba(239,68,68,.30); background: rgba(239,68,68,.10)}
+.pill--amber{border-color: rgba(245,158,11,.30); background: rgba(245,158,11,.10)}
 .pill__count{font-weight:700}
 
 .list{padding: 12px}
@@ -167,7 +167,7 @@ body{
   padding: 10px 10px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: rgba(255,255,255,.04);
+  background: rgba(15,23,42,.03);
   margin: 8px 0;
   cursor:pointer;
 }
@@ -177,27 +177,27 @@ body{
 .item__sub{color: var(--muted); font-size:12px; margin-top:4px; display:flex; gap:10px; flex-wrap:wrap}
 .tag{
   border:1px solid var(--line);
-  background: rgba(255,255,255,.06);
+  background: rgba(15,23,42,.03);
   padding: 1px 8px;
   border-radius:999px;
 }
-.tag--danger{border-color: rgba(255,91,108,.35)}
-.tag--amber{border-color: rgba(255,176,32,.35)}
+.tag--danger{border-color: rgba(239,68,68,.30)}
+.tag--amber{border-color: rgba(245,158,11,.30)}
 .tag--ok{border-color: rgba(55,214,122,.35)}
 .chk{
   width:18px; height:18px;
   border-radius:6px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.04);
+  background: rgba(15,23,42,.03);
 }
-.chk.is-on{background: rgba(55,214,122,.18); border-color: rgba(55,214,122,.35)}
+.chk.is-on{background: rgba(22,163,74,.14); border-color: rgba(22,163,74,.30)}
 .item__right{display:flex; gap:6px; align-items:center}
 
 .smallbtn{
   padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.04);
+  background: rgba(15,23,42,.03);
   color: var(--text);
   cursor:pointer;
   font-size: 12px;
@@ -207,7 +207,7 @@ body{
 .detail{
   border:1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(18,24,38,.7);
+  background: rgba(255,255,255,.82);
   box-shadow: var(--shadow);
   height: calc(100vh - 92px);
   position: sticky;
@@ -222,7 +222,7 @@ body{
   width:100%;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
+  background: rgba(255,255,255,.90);
   color: var(--text);
   padding: 10px 12px;
   outline:none;
@@ -239,7 +239,7 @@ body{
   bottom:0;
   z-index:30;
   border-top: 1px solid var(--line);
-  background: rgba(11,15,20,.82);
+  background: rgba(246,248,255,.90);
   backdrop-filter: blur(10px);
   padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
   gap: 10px;
@@ -247,13 +247,13 @@ body{
 .tab{
   flex:1;
   border:1px solid var(--line);
-  background: rgba(255,255,255,.06);
+  background: rgba(15,23,42,.03);
   color: var(--text);
   border-radius: 14px;
   padding: 10px 0;
   cursor:pointer;
 }
-.tab.is-active{border-color: rgba(78,161,255,.35); background: rgba(78,161,255,.18)}
+.tab.is-active{border-color: rgba(37,99,235,.35); background: rgba(37,99,235,.12)}
 .tab--plus{font-weight:900}
 
 .sheet[hidden]{display:none}
@@ -268,7 +268,7 @@ body{
 .sheet__panel{
   position:absolute; left:0; right:0; bottom:0;
   border-radius: 18px 18px 0 0;
-  background: rgba(18,24,38,.96);
+  background: rgba(255,255,255,.96);
   border-top: 1px solid var(--line);
   box-shadow: var(--shadow);
   max-height: 85vh;
