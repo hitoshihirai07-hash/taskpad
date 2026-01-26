@@ -48,3 +48,8 @@
 - public/about.html（このサイトについて）
 - public/privacy.html（プライバシーポリシー）
 ※ index.html のフッターと設定からリンク。
+
+
+## 追加（v9）
+- 設定：JSONをダウンロード（ファイル出力）
+- 設定：JSONを読み込んで復元（上書き/マージ選択）

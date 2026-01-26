@@ -784,6 +784,9 @@
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;">
         <button class="btn btn--primary" type="button" id="btnExportAll">TSVコピー</button>
         <button class="btn" type="button" id="btnBackup">バックアップ(JSON)をコピー</button>
+        <button class="btn" type="button" id="btnBackupDownload">JSONをダウンロード</button>
+        <button class="btn" type="button" id="btnBackupImport">JSONを読み込んで復元</button>
+        <input id="backupFileInput" type="file" accept="application/json,.json" style="display:none" />
       </div>
       <div style="color:var(--muted);font-size:12px;">
         ※データはこの端末のブラウザ内（localStorage）に保存されます。
@@ -939,9 +942,41 @@
       alert("TSVをコピーしました。スプレッドシート等に貼り付けできます。");
     });
     $("#btnBackup").addEventListener("click", () => {
-      copyText(JSON.stringify({ tasks: state.tasks }, null, 2));
+      copyText(JSON.stringify(exportBackupObject(), null, 2));
       alert("バックアップ(JSON)をコピーしました。");
     });
+
+    $("#btnBackupDownload").addEventListener("click", () => {
+      const payload = JSON.stringify(exportBackupObject(), null, 2);
+      const d = new Date();
+      const stamp = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}`;
+      downloadText(`taskpad_backup_${stamp}.json`, payload, "application/json");
+    });
+
+    const fileInput = $("#backupFileInput");
+    $("#btnBackupImport").addEventListener("click", () => {
+      if(!fileInput) return;
+      fileInput.value = "";
+      fileInput.click();
+    });
+
+    if(fileInput){
+      fileInput.addEventListener("change", async () => {
+        const f = fileInput.files && fileInput.files[0];
+        if(!f) return;
+
+        const text = await f.text();
+        const data = safeJsonParse(text);
+        if(!data){ alert("JSONが読み込めませんでした"); return; }
+
+        const replace = confirm("復元方法を選んでください。\nOK：上書き復元（今のデータを置き換え）\nキャンセル：マージ（既存に追加/同IDは上書き）");
+        if(replace){
+          const ok = confirm("上書き復元します。今のデータは置き換えられます。よろしいですか？");
+          if(!ok) return;
+        }
+        applyImportedData(data, replace ? "replace" : "merge");
+      });
+    }
 
     // Week mode radios
     wrap.querySelectorAll('input[name="weekMode"]').forEach(r => {
@@ -1097,6 +1132,91 @@ $("#btnClearAll").addEventListener("click", () => {
       document.execCommand("copy");
       ta.remove();
     }
+  }
+
+  function downloadText(filename, text, mime="application/json"){
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 500);
+  }
+
+  function safeJsonParse(str){
+    try{ return JSON.parse(str); }catch(e){ return null; }
+  }
+
+  function exportBackupObject(){
+    return {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      tasks: state.tasks,
+      settings: {
+        weekMode: state.weekMode,
+        categories: state.categories,
+        filterCategory: state.filterCategory,
+        sortMode: state.sortMode,
+        weekCollapsed: state.weekCollapsed,
+      }
+    };
+  }
+
+  function applyImportedData(data, mode){
+    // mode: "replace" | "merge"
+    if(!data || !Array.isArray(data.tasks)){
+      alert("JSONの形式が不正です（tasks配列がありません）");
+      return;
+    }
+
+    const incoming = data.tasks.map(normalizeTask).filter(t => t && t.id);
+
+    // Import settings (optional)
+    if(data.settings && typeof data.settings === "object"){
+      const s = data.settings;
+
+      if(typeof s.weekMode === "string" && (s.weekMode === "sunday" || s.weekMode === "7days")){
+        state.weekMode = s.weekMode;
+      }
+
+      if(Array.isArray(s.categories)){
+        const cleaned = s.categories
+          .map(x => String(x||"").trim())
+          .filter(Boolean)
+          .filter(x => x !== "INBOX")
+          .slice(0, 30);
+        if(cleaned.length) state.categories = [...new Set(cleaned)];
+      }
+
+      if(typeof s.filterCategory === "string"){
+        state.filterCategory = s.filterCategory;
+      }
+
+      if(typeof s.sortMode === "string" && ["due","priority","created"].includes(s.sortMode)){
+        state.sortMode = s.sortMode;
+      }
+
+      if(s.weekCollapsed && typeof s.weekCollapsed === "object"){
+        state.weekCollapsed = s.weekCollapsed;
+      }
+    }
+
+    if(mode === "replace"){
+      state.tasks = incoming;
+    }else{
+      // merge by id; incoming wins on collision
+      const map = new Map(state.tasks.map(t => [t.id, t]));
+      incoming.forEach(t => map.set(t.id, t));
+      state.tasks = Array.from(map.values());
+    }
+
+    save();        // tasks
+    saveSettings(); // settings
+    render();
+    alert(mode === "replace" ? "JSONを読み込みました（上書き復元）" : "JSONを読み込みました（マージ）");
   }
 
   function scrollToSection(id){
