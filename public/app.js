@@ -113,7 +113,6 @@
       category: t.category || "", // optional
       memo: t.memo || "",
       createdAt: t.createdAt || nowIso(),
-      exported: !!t.exported, // "転記済"
     };
   }
 
@@ -354,8 +353,6 @@
 
     const cat = (t.category || "").trim() ? `<span class="tag">${escapeHtml(t.category)}</span>` : `<span class="tag">INBOX</span>`;
     sub.push(cat);
-
-    if(t.exported) sub.push(`<span class="tag tag--ok">転記済</span>`);
     if(c === "overdue") sub.push(`<span class="tag tag--danger">期限切れ</span>`);
     if(c === "today") sub.push(`<span class="tag tag--amber">今日</span>`);
 
@@ -487,18 +484,9 @@
         </div>
       </div>
 
-      <div class="row">
-        <div class="field">
-          <div class="label">転記済</div>
-          <select class="select" data-k="exported">
-            <option value="false" ${t.exported ? "" : "selected"}>未転記</option>
-            <option value="true" ${t.exported ? "selected" : ""}>転記済</option>
-          </select>
-        </div>
-        <div class="field">
-          <div class="label">作成日</div>
-          <input class="input" value="${escapeAttr((t.createdAt||"").slice(0,10))}" disabled />
-        </div>
+      <div class="field">
+        <div class="label">作成日</div>
+        <input class="input" value="${escapeAttr((t.createdAt||"").slice(0,10))}" disabled />
       </div>
 
       <div class="field">
@@ -526,13 +514,11 @@
       inp.addEventListener("input", () => {
         const k = inp.getAttribute("data-k");
         let v = inp.value;
-        if(k === "exported") v = (v === "true");
         updateTask(t.id, { [k]: v });
       });
       inp.addEventListener("change", () => {
         const k = inp.getAttribute("data-k");
         let v = inp.value;
-        if(k === "exported") v = (v === "true");
         updateTask(t.id, { [k]: v });
       });
     });
@@ -570,8 +556,7 @@
         <div class="section__meta"></div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;">
-        <button class="btn btn--primary" type="button" id="btnExportTsv">未転記をTSVコピー</button>
-        <button class="btn" type="button" id="btnExportAll">全件をTSVコピー</button>
+        <button class="btn btn--primary" type="button" id="btnExportAll">TSVコピー</button>
         <button class="btn" type="button" id="btnBackup">バックアップ(JSON)をコピー</button>
       </div>
       <div style="color:var(--muted);font-size:12px;">
@@ -656,15 +641,10 @@
     ui.list.appendChild(wrap);
 
     // Wire buttons
-    $("#btnExportTsv").addEventListener("click", () => {
-      const rows = state.tasks.filter(t => t.status !== "done" && !t.exported);
-      copyText(toTsv(rows));
-      alert("未転記タスクをTSVでコピーしました。スプレッドシートに貼り付けできます。");
-    });
-    $("#btnExportAll").addEventListener("click", () => {
+        $("#btnExportAll").addEventListener("click", () => {
       const rows = state.tasks;
       copyText(toTsv(rows));
-      alert("全タスクをTSVでコピーしました。");
+      alert("TSVをコピーしました。スプレッドシート等に貼り付けできます。");
     });
     $("#btnBackup").addEventListener("click", () => {
       copyText(JSON.stringify({ tasks: state.tasks }, null, 2));
@@ -701,7 +681,6 @@
       cleanTsv(t.priority),
       cleanTsv(t.status),
       cleanTsv(t.category || "INBOX"),
-      cleanTsv(String(!!t.exported)),
       cleanTsv(t.memo),
       cleanTsv(t.createdAt),
       cleanTsv(t.id),
@@ -848,8 +827,8 @@
     if(state.tasks.length === 0){
       // Seed minimal sample (optional) - keep it tiny
       state.tasks = [
-        normalizeTask({ title: "TaskPadへようこそ（タップして編集）", dueDate: "", priority:"mid", category:"", memo:"期日は予定日＝締切として扱います。", exported:false }),
-        normalizeTask({ title: "今日が期日のタスク例", dueDate: toYmd(new Date()), priority:"high", category:"", memo:"期限切れ/今日が期日は上に出ます。", exported:false }),
+        normalizeTask({ title: "TaskPadへようこそ（タップして編集）", dueDate: "", priority:"mid", category:"", memo:"期日は予定日＝締切として扱います。" }),
+        normalizeTask({ title: "今日が期日のタスク例", dueDate: toYmd(new Date()), priority:"high", category:"", memo:"期限切れ/今日が期日は上に出ます。" }),
       ];
       save();
     }
