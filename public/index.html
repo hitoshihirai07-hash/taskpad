@@ -18,6 +18,7 @@
       <div class="topbar__actions">
         <input id="searchInput" class="search" placeholder="検索（タイトル/メモ）" />
         <select id="categoryFilter" class="select select--inline" aria-label="カテゴリフィルター"></select>
+        <select id="sortSelect" class="select select--inline select--sort" aria-label="並び替え"></select>
         <button id="newBtn" class="btn btn--primary" type="button">＋追加</button>
       </div>
     </header>
@@ -29,6 +30,9 @@
         </button>
         <button class="navbtn" data-view="week">
           今週 <span class="badge" id="badgeWeek">0</span>
+        </button>
+        <button class="navbtn" data-view="later">
+          あとで <span class="badge" id="badgeLater">0</span>
         </button>
         <button class="navbtn" data-view="nodate">
           期限なし <span class="badge" id="badgeNoDate">0</span>
@@ -55,6 +59,7 @@
     <nav class="bottomnav" aria-label="Mobile tabs">
       <button class="tab" data-view="today">今日</button>
       <button class="tab" data-view="week">今週</button>
+      <button class="tab" data-view="later">あとで</button>
       <button class="tab tab--plus" id="plusTab" type="button">＋</button>
       <button class="tab" data-view="nodate">期限なし</button>
       <button class="tab" data-view="settings">設定</button>

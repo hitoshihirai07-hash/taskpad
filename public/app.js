@@ -12,12 +12,14 @@
     newBtn: $("#newBtn"),
     badgeToday: $("#badgeToday"),
     badgeWeek: $("#badgeWeek"),
+    badgeLater: $("#badgeLater"),
     badgeNoDate: $("#badgeNoDate"),
     sheet: $("#sheet"),
     sheetBackdrop: $("#sheetBackdrop"),
     sheetContent: $("#sheetContent"),
     plusTab: $("#plusTab"),
     categoryFilter: $("#categoryFilter"),
+    sortSelect: $("#sortSelect"),
   };
 
   const state = {
@@ -28,6 +30,7 @@
     weekMode: "sunday", // "sunday" or "7days"
     categories: ["その他","趣味","作業"],
     filterCategory: "all",
+    sortMode: "due", // "due" | "priority" | "created"
     weekCollapsed: {},
   };
 
@@ -101,6 +104,9 @@
       if(typeof data.filterCategory === "string"){
         state.filterCategory = data.filterCategory;
       }
+      if(typeof data.sortMode === "string" && ["due","priority","created"].includes(data.sortMode)){
+        state.sortMode = data.sortMode;
+      }
       if(data && typeof data.weekCollapsed === "object" && data.weekCollapsed){
         state.weekCollapsed = data.weekCollapsed;
       }
@@ -113,6 +119,7 @@
       weekMode: state.weekMode,
       categories: state.categories,
       filterCategory: state.filterCategory,
+      sortMode: state.sortMode,
       weekCollapsed: state.weekCollapsed,
     }));
   }
@@ -195,6 +202,50 @@
     });
   }
 
+
+  function prioRank(p){
+    if(p === "high") return 0;
+    if(p === "mid") return 1;
+    if(p === "low") return 2;
+    return 1;
+  }
+  function dueKey(t){
+    const d = parseYmd(t.dueDate);
+    return d ? d.getTime() : Number.POSITIVE_INFINITY;
+  }
+  function createdKey(t){
+    const raw = (t.createdAt || "").slice(0,10);
+    const d = parseYmd(raw);
+    return d ? d.getTime() : 0;
+  }
+  function sortTasks(list){
+    const mode = state.sortMode || "due";
+    const copy = list.slice();
+    copy.sort((a,b) => {
+      if(mode === "priority"){
+        const pa = prioRank(a.priority), pb = prioRank(b.priority);
+        if(pa !== pb) return pa - pb;
+        const da = dueKey(a), db = dueKey(b);
+        if(da !== db) return da - db;
+        return createdKey(b) - createdKey(a);
+      }
+      if(mode === "created"){
+        const ca = createdKey(a), cb = createdKey(b);
+        if(ca !== cb) return cb - ca;
+        const da = dueKey(a), db = dueKey(b);
+        if(da !== db) return da - db;
+        return prioRank(a.priority) - prioRank(b.priority);
+      }
+      // due
+      const da = dueKey(a), db = dueKey(b);
+      if(da !== db) return da - db;
+      const pa = prioRank(a.priority), pb = prioRank(b.priority);
+      if(pa !== pb) return pa - pb;
+      return createdKey(b) - createdKey(a);
+    });
+    return copy;
+  }
+
   function classify(t){
     const today = startOfToday();
     const endWeek = endOfWeekInclusive();
@@ -218,7 +269,7 @@
       m.get(key).push(t);
     });
     const keys = [...m.keys()].sort();
-    return keys.map(k => ({ date: k, items: m.get(k) }));
+    return keys.map(k => ({ date: k, items: sortTasks(m.get(k)) }));
   }
 
   function priorityLabel(p){
@@ -253,9 +304,19 @@
       buckets[c].push(t);
     }
 
+    // Sort buckets
+    buckets.overdue = sortTasks(buckets.overdue);
+    buckets.today = sortTasks(buckets.today);
+    buckets.week = sortTasks(buckets.week);
+    buckets.later = sortTasks(buckets.later);
+    buckets.nodate = sortTasks(buckets.nodate);
+    buckets.done = sortTasks(buckets.done);
+    buckets.inbox = sortTasks(buckets.inbox);
+
     // Badges
     ui.badgeToday.textContent = String(buckets.overdue.length + buckets.today.length);
     ui.badgeWeek.textContent = String(buckets.week.length);
+    if(ui.badgeLater) ui.badgeLater.textContent = String(buckets.later.length);
     ui.badgeNoDate.textContent = String(buckets.nodate.length);
 
     // Category filter (desktop)
@@ -288,6 +349,25 @@
       }
 
       ui.categoryFilter.value = cur;
+    }
+
+
+    // Sort (desktop)
+    if(ui.sortSelect){
+      const curS = state.sortMode || "due";
+      ui.sortSelect.innerHTML = "";
+      const opts = [
+        ["due","並び替え: 期日が近い順"],
+        ["priority","並び替え: 優先度（高→低）"],
+        ["created","並び替え: 作成が新しい順"],
+      ];
+      opts.forEach(([v, label]) => {
+        const o = document.createElement("option");
+        o.value = v;
+        o.textContent = label;
+        ui.sortSelect.appendChild(o);
+      });
+      ui.sortSelect.value = curS;
     }
 
     // Active buttons
@@ -326,7 +406,18 @@
         ui.list.appendChild(emptyBlock("今週のタスクはありません"));
       }else{
         groups.forEach(g => {
-          const key = g.date;
+          const key = "week:" + g.date;
+          const collapsed = !!state.weekCollapsed[key];
+          renderSection(ymdToLabel(g.date), g.items, { meta: `${g.items.length}件`, collapsible:true, collapsed, key });
+        });
+      }
+    }else if(state.view === "later"){
+      const groups = groupWeek(buckets.later);
+      if(groups.length === 0){
+        ui.list.appendChild(emptyBlock("今週より先のタスクはありません"));
+      }else{
+        groups.forEach(g => {
+          const key = "later:" + g.date;
           const collapsed = !!state.weekCollapsed[key];
           renderSection(ymdToLabel(g.date), g.items, { meta: `${g.items.length}件`, collapsible:true, collapsed, key });
         });
@@ -725,6 +816,25 @@
     `;
     wrap.appendChild(weekSec);
 
+    // Sort setting
+    const sortSec = document.createElement("div");
+    sortSec.className = "section";
+    sortSec.innerHTML = `
+      <div class="section__head">
+        <div class="section__title">並び替え</div>
+        <div class="section__meta"></div>
+      </div>
+      <select class="select" id="sortSelectSettings">
+        <option value="due">期日が近い順</option>
+        <option value="priority">優先度（高→低）</option>
+        <option value="created">作成が新しい順</option>
+      </select>
+      <div style="color:var(--muted);font-size:12px;margin-top:8px;">
+        ※全タブ共通の並び順です。
+      </div>
+    `;
+    wrap.appendChild(sortSec);
+
     // Category presets
     const catSec = document.createElement("div");
     catSec.className = "section";
@@ -826,7 +936,22 @@
       });
     });
     
-    // Category presets UI
+    
+    // Sort setting (settings)
+    const sortSel = wrap.querySelector("#sortSelectSettings");
+    if(sortSel){
+      sortSel.value = state.sortMode || "due";
+      sortSel.addEventListener("change", () => {
+        const v = sortSel.value || "due";
+        if(["due","priority","created"].includes(v)){
+          state.sortMode = v;
+          saveSettings();
+          render();
+        }
+      });
+    }
+
+// Category presets UI
     const catList = wrap.querySelector("#catList");
     const renderCatChips = () => {
       if(!catList) return;
@@ -997,6 +1122,14 @@ $("#btnClearAll").addEventListener("click", () => {
     if(ui.categoryFilter){
       ui.categoryFilter.addEventListener("change", () => {
         state.filterCategory = ui.categoryFilter.value || "all";
+        saveSettings();
+        render();
+      });
+    }
+
+    if(ui.sortSelect){
+      ui.sortSelect.addEventListener("change", () => {
+        state.sortMode = ui.sortSelect.value || "due";
         saveSettings();
         render();
       });

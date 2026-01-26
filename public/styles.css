@@ -249,6 +249,8 @@ body{
   backdrop-filter: blur(10px);
   padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
   gap: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .tab{
   flex:1;
@@ -323,9 +325,10 @@ body{
   padding: 10px 12px;
   border-radius: 999px;
   background: rgba(255,255,255,.95);
-  min-width: 220px;
-  flex: 1 1 240px;
+  min-width: 160px;
+  flex: 0 1 220px;
 }
+.select--sort{ min-width: 160px; }
 @media (max-width: 760px){
   .select--inline{ display:none; }
 }
@@ -354,3 +357,5 @@ body{
 }
 
 #newBtn{min-width:92px;}
+
+.bottomnav .tab{flex:0 0 auto; min-width:86px}
