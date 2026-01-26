@@ -40,9 +40,11 @@ body{
 .brand__title{font-weight:800; letter-spacing:.3px}
 .brand__sub{font-size:12px; color:var(--muted); margin-top:2px}
 
-.topbar__actions{display:flex; gap:10px; align-items:center}
+.topbar__actions{display:flex; gap:10px; align-items:center; flex-wrap:nowrap; min-width:0}
 .search{
   width:min(38vw, 460px);
+  flex: 1 1 240px;
+  min-width: 160px;
   background: rgba(255,255,255,.95);
   border: 1px solid var(--line);
   color: var(--text);
@@ -53,12 +55,16 @@ body{
 .search::placeholder{color:rgba(71,85,105,.65)}
 
 .btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
   border:1px solid var(--line);
   background: rgba(15,23,42,.03);
   color: var(--text);
   padding:10px 12px;
   border-radius: 999px;
   cursor:pointer;
+  white-space: nowrap;
 }
 .btn:hover{filter:brightness(1.1)}
 .btn--primary{
@@ -317,7 +323,8 @@ body{
   padding: 10px 12px;
   border-radius: 999px;
   background: rgba(255,255,255,.95);
-  min-width: 160px;
+  min-width: 220px;
+  flex: 1 1 240px;
 }
 @media (max-width: 760px){
   .select--inline{ display:none; }
@@ -345,3 +352,5 @@ body{
   width: 34px;
   justify-content:center;
 }
+
+#newBtn{min-width:92px;}
