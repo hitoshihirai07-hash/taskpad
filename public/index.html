@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TaskPad</title>
+  <meta name="description" content="今日・今週・期限なしで整理できるタスクメモ" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__title">TaskPad</div>
+        <div class="brand__sub">今日・今週・期限なし</div>
+      </div>
+
+      <div class="topbar__actions">
+        <input id="searchInput" class="search" placeholder="検索（タイトル/メモ）" />
+        <button id="newBtn" class="btn btn--primary" type="button">＋追加</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <nav class="sidebar" aria-label="Views">
+        <button class="navbtn" data-view="today">
+          今日 <span class="badge" id="badgeToday">0</span>
+        </button>
+        <button class="navbtn" data-view="week">
+          今週 <span class="badge" id="badgeWeek">0</span>
+        </button>
+        <button class="navbtn" data-view="nodate">
+          期限なし <span class="badge" id="badgeNoDate">0</span>
+        </button>
+        <button class="navbtn" data-view="settings">
+          設定
+        </button>
+
+        <div class="sidebar__hint">
+          <div class="hintline"><span class="dot dot--red"></span>期限切れ</div>
+          <div class="hintline"><span class="dot dot--amber"></span>今日が期日</div>
+        </div>
+      </nav>
+
+      <main class="main">
+        <section class="alerts" id="alerts"></section>
+        <section class="list" id="list"></section>
+      </main>
+
+      <aside class="detail" id="detail" aria-label="Detail panel"></aside>
+    </div>
+
+    <!-- Mobile bottom nav -->
+    <nav class="bottomnav" aria-label="Mobile tabs">
+      <button class="tab" data-view="today">今日</button>
+      <button class="tab" data-view="week">今週</button>
+      <button class="tab tab--plus" id="plusTab" type="button">＋</button>
+      <button class="tab" data-view="nodate">期限なし</button>
+      <button class="tab" data-view="settings">設定</button>
+    </nav>
+
+    <!-- Mobile detail sheet -->
+    <div class="sheet" id="sheet" hidden>
+      <div class="sheet__backdrop" id="sheetBackdrop"></div>
+      <div class="sheet__panel">
+        <div class="sheet__handle"></div>
+        <div class="sheet__content" id="sheetContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
