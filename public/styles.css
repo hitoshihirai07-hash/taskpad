@@ -311,3 +311,37 @@ body{
   font-size: 13px;
 }
 .radio input{ accent-color: var(--primary); }
+
+
+.select--inline{
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.95);
+  min-width: 160px;
+}
+@media (max-width: 760px){
+  .select--inline{ display:none; }
+}
+
+.chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  background: rgba(15,23,42,.03);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 13px;
+}
+.chip button{
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 900;
+  color: var(--muted);
+}
+.smallbtn--icon{
+  width: 34px;
+  justify-content:center;
+}

@@ -17,6 +17,7 @@
     sheetBackdrop: $("#sheetBackdrop"),
     sheetContent: $("#sheetContent"),
     plusTab: $("#plusTab"),
+    categoryFilter: $("#categoryFilter"),
   };
 
   const state = {
@@ -25,6 +26,9 @@
     tasks: [],
     selectedId: null,
     weekMode: "sunday", // "sunday" or "7days"
+    categories: ["その他","趣味","作業"],
+    filterCategory: "all",
+    weekCollapsed: {},
   };
 
   function pad2(n){ return String(n).padStart(2,"0"); }
@@ -83,15 +87,34 @@
       const raw = localStorage.getItem(SETTINGS_KEY);
       if(!raw) return;
       const data = JSON.parse(raw);
+
       if(data && (data.weekMode === "sunday" || data.weekMode === "7days")){
         state.weekMode = data.weekMode;
+      }
+      if(Array.isArray(data.categories) && data.categories.length){
+        const cleaned = data.categories
+          .map(x => String(x||"").trim())
+          .filter(Boolean)
+          .slice(0, 30);
+        state.categories = [...new Set(cleaned)];
+      }
+      if(typeof data.filterCategory === "string"){
+        state.filterCategory = data.filterCategory;
+      }
+      if(data && typeof data.weekCollapsed === "object" && data.weekCollapsed){
+        state.weekCollapsed = data.weekCollapsed;
       }
     }catch(e){
       console.warn("Failed to load settings", e);
     }
   }
   function saveSettings(){
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ weekMode: state.weekMode }));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      weekMode: state.weekMode,
+      categories: state.categories,
+      filterCategory: state.filterCategory,
+      weekCollapsed: state.weekCollapsed,
+    }));
   }
 
 
@@ -143,10 +166,30 @@
     render();
   }
 
+  function allCategoriesForFilter(){
+    // union: presets + categories actually used in tasks
+    const used = state.tasks
+      .map(t => String((t.category || "")).trim())
+      .filter(Boolean);
+    const merged = [...state.categories, ...used];
+    const uniq = [];
+    for(const c of merged){
+      const s = String(c||"").trim();
+      if(!s || s === "INBOX") continue;
+      if(!uniq.includes(s)) uniq.push(s);
+    }
+    return uniq.slice(0, 60);
+  }
+
   function filteredTasks(){
     const q = (state.query || "").trim().toLowerCase();
-    if(!q) return state.tasks;
+    const fcat = state.filterCategory || "all";
+
     return state.tasks.filter(t => {
+      const cat = (t.category || "").trim() || "INBOX";
+      if(fcat !== "all" && cat !== fcat) return false;
+
+      if(!q) return true;
       const hay = `${t.title} ${t.memo}`.toLowerCase();
       return hay.includes(q);
     });
@@ -215,6 +258,38 @@
     ui.badgeWeek.textContent = String(buckets.week.length);
     ui.badgeNoDate.textContent = String(buckets.nodate.length);
 
+    // Category filter (desktop)
+    if(ui.categoryFilter){
+      const cur = state.filterCategory || "all";
+      ui.categoryFilter.innerHTML = "";
+
+      const optAll = document.createElement("option");
+      optAll.value = "all";
+      optAll.textContent = "カテゴリ: 全部";
+      ui.categoryFilter.appendChild(optAll);
+
+      const optInbox = document.createElement("option");
+      optInbox.value = "INBOX";
+      optInbox.textContent = "INBOX（未分類）";
+      ui.categoryFilter.appendChild(optInbox);
+
+      allCategoriesForFilter().forEach(c => {
+        const o = document.createElement("option");
+        o.value = c;
+        o.textContent = c;
+        ui.categoryFilter.appendChild(o);
+      });
+
+      if(cur !== "all" && cur !== "INBOX" && ![...ui.categoryFilter.options].some(o => o.value === cur)){
+        const o = document.createElement("option");
+        o.value = cur;
+        o.textContent = cur;
+        ui.categoryFilter.appendChild(o);
+      }
+
+      ui.categoryFilter.value = cur;
+    }
+
     // Active buttons
     document.querySelectorAll("[data-view]").forEach(btn => {
       const v = btn.getAttribute("data-view");
@@ -251,7 +326,9 @@
         ui.list.appendChild(emptyBlock("今週のタスクはありません"));
       }else{
         groups.forEach(g => {
-          renderSection(ymdToLabel(g.date), g.items, { meta: `${g.items.length}件` });
+          const key = g.date;
+          const collapsed = !!state.weekCollapsed[key];
+          renderSection(ymdToLabel(g.date), g.items, { meta: `${g.items.length}件`, collapsible:true, collapsed, key });
         });
       }
     }else if(state.view === "nodate"){
@@ -289,11 +366,55 @@
 
     const head = document.createElement("div");
     head.className = "section__head";
-    head.innerHTML = `
-      <div class="section__title">${escapeHtml(title)}</div>
-      <div class="section__meta">${escapeHtml(opts.meta || (items.length ? `${items.length}件` : ""))}</div>
-    `;
+
+    const left = document.createElement("div");
+    left.className = "section__title";
+    left.textContent = title;
+
+    const right = document.createElement("div");
+    right.className = "section__meta";
+    right.textContent = opts.meta || (items.length ? `${items.length}件` : "");
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "smallbtn smallbtn--icon";
+    toggle.style.marginLeft = "8px";
+    toggle.textContent = opts.collapsible ? (opts.collapsed ? "＋" : "－") : "";
+    toggle.title = opts.collapsible ? "折りたたみ" : "";
+    toggle.style.display = opts.collapsible ? "inline-flex" : "none";
+
+    head.appendChild(left);
+    const rightWrap = document.createElement("div");
+    rightWrap.style.display = "flex";
+    rightWrap.style.alignItems = "center";
+    rightWrap.appendChild(right);
+    rightWrap.appendChild(toggle);
+    head.appendChild(rightWrap);
+
+    if(opts.collapsible){
+      head.style.cursor = "pointer";
+      head.addEventListener("click", () => {
+        const key = opts.key || title;
+        state.weekCollapsed[key] = !state.weekCollapsed[key];
+        saveSettings();
+        render();
+      });
+      toggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const key = opts.key || title;
+        state.weekCollapsed[key] = !state.weekCollapsed[key];
+        saveSettings();
+        render();
+      });
+    }
+
     sec.appendChild(head);
+
+    if(opts.collapsible && opts.collapsed){
+      sec.appendChild(emptyBlock("（折りたたみ中）"));
+      ui.list.appendChild(sec);
+      return;
+    }
 
     if(items.length === 0){
       sec.appendChild(emptyBlock("なし"));
@@ -480,7 +601,15 @@
         </div>
         <div class="field">
           <div class="label">カテゴリ（空ならINBOX）</div>
-          <input class="input" data-k="category" value="${escapeAttr(cat)}" placeholder="例：DQ / 小説 / 日常" />
+          <input class="input" data-k="category" value="${escapeAttr(cat)}" list="categoryList" placeholder="例：DQ / 小説 / 日常" />
+          <datalist id="categoryList">
+            <option value="INBOX"></option>
+            ${state.categories.map(c => `<option value="${escapeHtml(c)}"></option>`).join("")}
+          </datalist>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+            ${state.categories.map(c => `<button class="smallbtn" type="button" data-catpick="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("")}
+            <button class="smallbtn" type="button" data-catpick="">INBOX</button>
+          </div>
         </div>
       </div>
 
@@ -520,6 +649,12 @@
         const k = inp.getAttribute("data-k");
         let v = inp.value;
         updateTask(t.id, { [k]: v });
+      });
+    });
+
+    root.querySelectorAll("[data-catpick]").forEach(b => {
+      b.addEventListener("click", () => {
+        updateTask(t.id, { category: b.getAttribute("data-catpick") || "" });
       });
     });
 
@@ -589,6 +724,34 @@
       </div>
     `;
     wrap.appendChild(weekSec);
+
+    // Category presets
+    const catSec = document.createElement("div");
+    catSec.className = "section";
+    catSec.innerHTML = `
+      <div class="section__head">
+        <div class="section__title">カテゴリ（プリセット）</div>
+        <div class="section__meta">${state.categories.length}件</div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0;">
+        <input class="input" id="catNew" placeholder="カテゴリ名を追加（例：DQ）" style="max-width:320px;" />
+        <button class="btn btn--primary" type="button" id="catAdd">追加</button>
+        <button class="btn" type="button" id="catReset">初期に戻す</button>
+      </div>
+
+      <div id="catList" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+
+      <div style="margin-top:12px;">
+        <div class="label">カテゴリで絞り込み（全画面共通）</div>
+        <select class="select" id="catFilterSelect"></select>
+      </div>
+
+      <div style="color:var(--muted);font-size:12px;margin-top:8px;">
+        ※ここで設定したカテゴリはローカル保存され、編集画面のワンタップ入力やフィルターに使われます。
+      </div>
+    `;
+    wrap.appendChild(catSec);
 
     // Inbox
     const inbox = document.createElement("div");
@@ -662,7 +825,94 @@
         }
       });
     });
-    $("#btnClearAll").addEventListener("click", () => {
+    
+    // Category presets UI
+    const catList = wrap.querySelector("#catList");
+    const renderCatChips = () => {
+      if(!catList) return;
+      catList.innerHTML = "";
+      state.categories.forEach((c, idx) => {
+        const chip = document.createElement("div");
+        chip.className = "chip";
+        chip.innerHTML = `<span>${escapeHtml(c)}</span><button type="button" aria-label="remove">×</button>`;
+        chip.querySelector("button").addEventListener("click", () => {
+          state.categories.splice(idx, 1);
+          if(state.filterCategory === c) state.filterCategory = "all";
+          saveSettings();
+          render();
+        });
+        catList.appendChild(chip);
+      });
+      if(state.categories.length === 0){
+        catList.appendChild(emptyBlock("（なし）"));
+      }
+    };
+
+    const catNew = wrap.querySelector("#catNew");
+    const catAdd = wrap.querySelector("#catAdd");
+    const catReset = wrap.querySelector("#catReset");
+
+    if(catAdd && catNew){
+      catAdd.addEventListener("click", () => {
+        const v = (catNew.value || "").trim();
+        if(!v) return;
+        if(v === "INBOX"){ alert("INBOX は予約語なので使えません"); return; }
+        if(state.categories.includes(v)){ catNew.value=""; return; }
+        state.categories.unshift(v);
+        state.categories = state.categories.slice(0, 30);
+        catNew.value = "";
+        saveSettings();
+        render();
+      });
+      catNew.addEventListener("keydown", (e) => {
+        if(e.key === "Enter"){ e.preventDefault(); catAdd.click(); }
+      });
+    }
+
+    if(catReset){
+      catReset.addEventListener("click", () => {
+        state.categories = ["その他","趣味","作業"];
+        state.filterCategory = "all";
+        saveSettings();
+        render();
+      });
+    }
+
+    // Filter select (mobile-friendly)
+    const catFilterSelect = wrap.querySelector("#catFilterSelect");
+    if(catFilterSelect){
+      const rebuild = () => {
+        const cur = state.filterCategory || "all";
+        catFilterSelect.innerHTML = "";
+
+        const oAll = document.createElement("option"); oAll.value="all"; oAll.textContent="全部";
+        const oIn = document.createElement("option"); oIn.value="INBOX"; oIn.textContent="INBOX（未分類）";
+        catFilterSelect.appendChild(oAll);
+        catFilterSelect.appendChild(oIn);
+
+        allCategoriesForFilter().forEach(c => {
+          const o = document.createElement("option"); o.value=c; o.textContent=c;
+          catFilterSelect.appendChild(o);
+        });
+
+        if(cur !== "all" && cur !== "INBOX" && ![...catFilterSelect.options].some(o => o.value === cur)){
+          const o = document.createElement("option"); o.value=cur; o.textContent=cur;
+          catFilterSelect.appendChild(o);
+        }
+
+        catFilterSelect.value = cur;
+      };
+      rebuild();
+      catFilterSelect.addEventListener("change", () => {
+        state.filterCategory = catFilterSelect.value || "all";
+        saveSettings();
+        render();
+      });
+    }
+
+    renderCatChips();
+
+$("#btnClearAll").addEventListener("click", () => {
       if(confirm("本当に全タスクを削除しますか？")){
         state.tasks = [];
         state.selectedId = null;
@@ -743,6 +993,15 @@
       state.query = ui.search.value;
       render();
     });
+
+    if(ui.categoryFilter){
+      ui.categoryFilter.addEventListener("change", () => {
+        state.filterCategory = ui.categoryFilter.value || "all";
+        saveSettings();
+        render();
+      });
+    }
+
     ui.newBtn.addEventListener("click", () => openQuickAdd());
     ui.plusTab.addEventListener("click", () => openQuickAdd());
   }
