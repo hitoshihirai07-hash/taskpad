@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>使い方 - TaskPad</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="topbar__left">
+        <a class="brand" href="./">TaskPad</a>
+      </div>
+      <div class="topbar__actions">
+        <a class="btn" href="./">タスクへ戻る</a>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="panel" style="max-width:900px;margin:0 auto;">
+        <h1 style="margin:0 0 10px;font-size:22px;">使い方</h1>
+        <div class="muted" style="margin-bottom:16px;">TaskPad（ブラウザ内で完結するタスクメモ）</div>
+        <div class="prose">
+          
+<h2>できること</h2>
+<ul>
+  <li>タスク追加（スマホは「＋」からクイック追加：期日プリセット＋カテゴリプリセット）</li>
+  <li>タブ：今日 / 今週 / あとで（今週より先） / 期限なし / 設定</li>
+  <li>カテゴリ：プリセットを自由に追加・削除（ローカル保存）＋カテゴリで絞り込み</li>
+  <li>並び替え：期日 / 優先度 / 作成日（全タブ共通）</li>
+  <li>TSVコピー・JSONバックアップ（必要なときだけ外部に貼り付け）</li>
+</ul>
+
+<h2>データの保存場所</h2>
+<ul>
+  <li>タスクデータは <code>ブラウザのローカル保存（localStorage）</code> に保存されます。</li>
+  <li>ログイン機能はありません。<strong>別端末・別ブラウザには同期されません</strong>。</li>
+  <li>ブラウザのデータ削除や初期化で消える可能性があります。</li>
+</ul>
+
+<h2>ざっくり操作</h2>
+<ul>
+  <li><strong>追加</strong>：PCは右上「＋追加」/ スマホは下の「＋」</li>
+  <li><strong>編集</strong>：タスク行をタップ → 期日 / 優先度 / 状態（未着手/進行中/完了）/ カテゴリ / メモ</li>
+  <li><strong>カテゴリ</strong>：設定でプリセットを作る → 編集画面とクイック追加で使えます</li>
+  <li><strong>今週/あとで</strong>：日付見出しをタップすると折りたたみできます</li>
+</ul>
+
+<h2>バックアップ（おすすめ）</h2>
+<ul>
+  <li>設定の <strong>TSVコピー</strong>：スプレッドシート等に貼り付け</li>
+  <li>設定の <strong>JSONバックアップをコピー</strong>：テキストに保存（自分用メモでもOK）</li>
+</ul>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer class="sitefooter">
+    <div class="sitefooter__inner">
+      <a href="./help.html">使い方</a>
+      <span class="sep">/</span>
+      <a href="./about.html">このサイトについて</a>
+      <span class="sep">/</span>
+      <a href="./privacy.html">プライバシーポリシー</a>
+    </div>
+  </footer>
+</body>
+</html>

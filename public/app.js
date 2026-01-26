@@ -791,6 +791,25 @@
     `;
     wrap.appendChild(h);
 
+    // Site links
+    const infoSec = document.createElement("div");
+    infoSec.className = "section";
+    infoSec.innerHTML = `
+      <div class="section__head">
+        <div class="section__title">サイト情報</div>
+        <div class="section__meta"></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;">
+        <a class="btn" href="./help.html">使い方</a>
+        <a class="btn" href="./about.html">このサイトについて</a>
+        <a class="btn" href="./privacy.html">プライバシーポリシー</a>
+      </div>
+      <div style="color:var(--muted);font-size:12px;margin-top:8px;">
+        ※公開用に最低限の案内ページを用意しています。
+      </div>
+    `;
+    wrap.appendChild(infoSec);
+
 
     // Week mode setting
     const weekSec = document.createElement("div");
