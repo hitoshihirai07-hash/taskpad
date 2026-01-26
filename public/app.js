@@ -1,6 +1,7 @@
 /* TaskPad - vanilla JS, localStorage */
 (() => {
   const STORAGE_KEY = "taskpad.v1";
+  const SETTINGS_KEY = "taskpad.settings.v1";
   const $ = (sel) => document.querySelector(sel);
 
   const ui = {
@@ -23,6 +24,7 @@
     query: "",
     tasks: [],
     selectedId: null,
+    weekMode: "sunday", // "sunday" or "7days"
   };
 
   function pad2(n){ return String(n).padStart(2,"0"); }
@@ -44,9 +46,17 @@
   }
   function endOfWeekInclusive(){
     const t = startOfToday();
-    const day = t.getDay(); // 0:Sun
-    const add = (7 - day) % 7; // until Sunday
     const end = new Date(t);
+
+    if(state.weekMode === "7days"){
+      // Today + 6 days (7-day window)
+      end.setDate(end.getDate() + 6);
+      return end;
+    }
+
+    // Default: until Sunday
+    const day = t.getDay(); // 0:Sun
+    const add = (7 - day) % 7;
     end.setDate(end.getDate() + add);
     return end;
   }
@@ -67,6 +77,23 @@
   function save(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ tasks: state.tasks }));
   }
+
+  function loadSettings(){
+    try{
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if(!raw) return;
+      const data = JSON.parse(raw);
+      if(data && (data.weekMode === "sunday" || data.weekMode === "7days")){
+        state.weekMode = data.weekMode;
+      }
+    }catch(e){
+      console.warn("Failed to load settings", e);
+    }
+  }
+  function saveSettings(){
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ weekMode: state.weekMode }));
+  }
+
 
   function uid(){
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
@@ -553,6 +580,31 @@
     `;
     wrap.appendChild(h);
 
+
+    // Week mode setting
+    const weekSec = document.createElement("div");
+    weekSec.className = "section";
+    weekSec.innerHTML = `
+      <div class="section__head">
+        <div class="section__title">今週の範囲</div>
+        <div class="section__meta"></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;">
+        <label class="radio">
+          <input type="radio" name="weekMode" value="sunday" ${state.weekMode==="sunday"?"checked":""} />
+          日曜まで
+        </label>
+        <label class="radio">
+          <input type="radio" name="weekMode" value="7days" ${state.weekMode==="7days"?"checked":""} />
+          7日先まで
+        </label>
+      </div>
+      <div style="color:var(--muted);font-size:12px;">
+        ※「今週」タブの表示範囲が変わります。
+      </div>
+    `;
+    wrap.appendChild(weekSec);
+
     // Inbox
     const inbox = document.createElement("div");
     inbox.className = "section";
@@ -617,6 +669,18 @@
     $("#btnBackup").addEventListener("click", () => {
       copyText(JSON.stringify({ tasks: state.tasks }, null, 2));
       alert("バックアップ(JSON)をコピーしました。");
+    });
+
+    // Week mode radios
+    wrap.querySelectorAll('input[name="weekMode"]').forEach(r => {
+      r.addEventListener("change", () => {
+        const v = r.value;
+        if(v === "sunday" || v === "7days"){
+          state.weekMode = v;
+          saveSettings();
+          render();
+        }
+      });
     });
     $("#btnClearAll").addEventListener("click", () => {
       if(confirm("本当に全タスクを削除しますか？")){
@@ -712,13 +776,28 @@
           <div style="font-weight:900;font-size:16px;">追加</div>
           <button class="btn btn--ghost" type="button" data-action="closeSheet">閉じる</button>
         </div>
+
+        <div class="field" style="margin-top:10px;">
+          <div class="label">期日プリセット</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button class="smallbtn" type="button" data-qadue="today">今日</button>
+            <button class="smallbtn" type="button" data-qadue="tomorrow">明日</button>
+            <button class="smallbtn" type="button" data-qadue="nodate">なし</button>
+          </div>
+          <div style="color:var(--muted);font-size:12px;margin-top:6px;">
+            ※未選択のままでもOK（タイトルだけ保存できます）
+          </div>
+        </div>
+
         <div class="field" style="margin-top:10px;">
           <div class="label">タイトル（これだけで保存OK）</div>
           <input class="input" id="qaTitle" placeholder="例：CSV更新 / 記事メモ / 返信" />
         </div>
+
         <div class="actions">
           <button class="btn btn--primary" type="button" id="qaSave">保存</button>
         </div>
+
         <div style="color:var(--muted);font-size:12px;margin-top:8px;">
           保存後に編集画面で期日・カテゴリ等を追加できます。
         </div>
@@ -727,10 +806,31 @@
       ui.sheetContent.querySelector("[data-action='closeSheet']").addEventListener("click", closeSheet);
       const input = $("#qaTitle");
       input.focus();
+
+      let preset = ""; // "" | "today" | "tomorrow" | "nodate"
+      ui.sheetContent.querySelectorAll("[data-qadue]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          preset = btn.getAttribute("data-qadue") || "";
+          // visual active
+          ui.sheetContent.querySelectorAll("[data-qadue]").forEach(b => b.style.outline = "");
+          btn.style.outline = "2px solid rgba(37,99,235,.35)";
+        });
+      });
+
       $("#qaSave").addEventListener("click", () => {
         const title = (input.value || "").trim();
         if(!title){ alert("タイトルを入力してください"); return; }
-        addTask({ title });
+
+        let dueDate = "";
+        if(preset === "today"){
+          dueDate = toYmd(new Date());
+        }else if(preset === "tomorrow"){
+          const d = startOfToday(); d.setDate(d.getDate()+1);
+          dueDate = toYmd(d);
+        }else if(preset === "nodate"){
+          dueDate = "";
+        }
+        addTask({ title, dueDate });
         // detail opens automatically
       });
       return;
@@ -744,6 +844,7 @@
 
   function init(){
     load();
+    loadSettings();
     if(state.tasks.length === 0){
       // Seed minimal sample (optional) - keep it tiny
       state.tasks = [
