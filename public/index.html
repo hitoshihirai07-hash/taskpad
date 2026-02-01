@@ -16,7 +16,10 @@
       </div>
 
       <div class="topbar__actions">
-        <input id="searchInput" class="search" placeholder="検索（タイトル/メモ）" />
+        <div class="searchwrap">
+          <input id="searchInput" class="search" placeholder="検索（タイトル/メモ）" />
+          <button id="searchClear" class="searchclear" type="button" aria-label="検索をクリア" hidden>×</button>
+        </div>
         <select id="categoryFilter" class="select select--inline" aria-label="カテゴリフィルター"></select>
         <select id="sortSelect" class="select select--inline select--sort" aria-label="並び替え"></select>
         <button id="newBtn" class="btn btn--primary" type="button">＋追加</button>
@@ -41,6 +44,11 @@
           設定
         </button>
 
+        <button class="navbtn" data-view="trash">
+          ゴミ箱 <span class="badge" id="badgeTrash">0</span>
+        </button>
+
+
         <div class="sidebar__hint">
           <div class="hintline"><span class="dot dot--red"></span>期限切れ</div>
           <div class="hintline"><span class="dot dot--amber"></span>今日が期日</div>
@@ -63,6 +71,7 @@
       <button class="tab tab--plus" id="plusTab" type="button">＋</button>
       <button class="tab" data-view="nodate">期限なし</button>
       <button class="tab" data-view="settings">設定</button>
+          <button class="tab" data-view="trash">ゴミ箱</button>
     </nav>
 
     <!-- Mobile detail sheet -->
@@ -73,9 +82,11 @@
         <div class="sheet__content" id="sheetContent"></div>
       </div>
     </div>
+
+    <div id="toast" class="toast" hidden></div>
   </div>
 
-  <script src="./app.js"></script>
+  <script src="./app.js"></script
 
   <footer class="sitefooter">
     <div class="sitefooter__inner">

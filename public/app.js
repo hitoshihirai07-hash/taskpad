@@ -20,6 +20,9 @@
     plusTab: $("#plusTab"),
     categoryFilter: $("#categoryFilter"),
     sortSelect: $("#sortSelect"),
+    searchClear: $("#searchClear"),
+    badgeTrash: $("#badgeTrash"),
+    toast: $("#toast"),
   };
 
   const state = {
@@ -76,7 +79,7 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if(!raw) return;
       const data = JSON.parse(raw);
-      if(Array.isArray(data.tasks)) state.tasks = data.tasks;
+      if(Array.isArray(data.tasks)) state.tasks = data.tasks.map(normalizeTask);
     }catch(e){
       console.warn("Failed to load", e);
     }
@@ -142,6 +145,7 @@
       status: t.status || "todo", // todo/doing/done
       category: t.category || "", // optional
       memo: t.memo || "",
+      deletedAt: (t.deletedAt ?? null),
       createdAt: t.createdAt || nowIso(),
     };
   }
@@ -164,13 +168,95 @@
     render();
   }
 
+  let toastTimer = null;
+  let toastUndoFn = null;
+
+  function showToast(message, actionLabel, actionFn, timeoutMs=6500){
+    if(!ui.toast) return;
+    clearTimeout(toastTimer);
+    toastUndoFn = (typeof actionFn === "function") ? actionFn : null;
+
+    ui.toast.innerHTML = "";
+    const msg = document.createElement("div");
+    msg.className = "toast__msg";
+    msg.textContent = message || "";
+    ui.toast.appendChild(msg);
+
+    if(actionLabel && toastUndoFn){
+      const b = document.createElement("button");
+      b.className = "toast__btn";
+      b.type = "button";
+      b.textContent = actionLabel;
+      b.addEventListener("click", () => {
+        try{ toastUndoFn && toastUndoFn(); }finally{ hideToast(); }
+      });
+      ui.toast.appendChild(b);
+    }
+
+    const x = document.createElement("button");
+    x.className = "toast__close";
+    x.type = "button";
+    x.textContent = "×";
+    x.addEventListener("click", hideToast);
+    ui.toast.appendChild(x);
+
+    ui.toast.hidden = false;
+    toastTimer = setTimeout(hideToast, timeoutMs);
+  }
+
+  function hideToast(){
+    if(!ui.toast) return;
+    clearTimeout(toastTimer);
+    toastTimer = null;
+    toastUndoFn = null;
+    ui.toast.hidden = true;
+    ui.toast.innerHTML = "";
+  }
+
   function deleteTask(id){
+    // Soft delete => move to trash
     const i = state.tasks.findIndex(x => x.id === id);
     if(i < 0) return;
-    state.tasks.splice(i,1);
+    const t = state.tasks[i];
+    if(t.deletedAt) return;
+
+    state.tasks[i] = { ...t, deletedAt: Date.now() };
     if(state.selectedId === id) state.selectedId = null;
     save();
     render();
+    showToast("ゴミ箱に移動しました", "Undo", () => restoreTask(id));
+  }
+
+  function restoreTask(id){
+    const i = state.tasks.findIndex(x => x.id === id);
+    if(i < 0) return;
+    const t = state.tasks[i];
+    if(!t.deletedAt) return;
+
+    state.tasks[i] = { ...t, deletedAt: null };
+    save();
+    render();
+  }
+
+  function purgeTask(id){
+    const i = state.tasks.findIndex(x => x.id === id);
+    if(i < 0) return;
+    state.tasks.splice(i, 1);
+    if(state.selectedId === id) state.selectedId = null;
+    save();
+    render();
+  }
+
+  function emptyTrash(){
+    const before = state.tasks.length;
+    state.tasks = state.tasks.filter(t => !t.deletedAt);
+    if(state.selectedId && !state.tasks.some(t => t.id === state.selectedId)){
+      state.selectedId = null;
+    }
+    if(state.tasks.length !== before){
+      save();
+      render();
+    }
   }
 
   function allCategoriesForFilter(){
@@ -188,11 +274,15 @@
     return uniq.slice(0, 60);
   }
 
-  function filteredTasks(){
+  function filteredTasks(mode="active"){
     const q = (state.query || "").trim().toLowerCase();
     const fcat = state.filterCategory || "all";
 
     return state.tasks.filter(t => {
+      const isDel = !!t.deletedAt;
+      if(mode === "active" && isDel) return false;
+      if(mode === "trash" && !isDel) return false;
+
       const cat = (t.category || "").trim() || "INBOX";
       if(fcat !== "all" && cat !== fcat) return false;
 
@@ -285,8 +375,27 @@
     return `${d.getMonth()+1}/${d.getDate()}(${w})`;
   }
 
+  function deletedAtLabel(ts){
+    if(!ts) return "";
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  }
+
+  function sortTrash(list){
+    const copy = list.slice();
+    copy.sort((a,b) => {
+      const da = a.deletedAt ? Number(a.deletedAt) : 0;
+      const db = b.deletedAt ? Number(b.deletedAt) : 0;
+      if(da !== db) return db - da;
+      return createdKey(b) - createdKey(a);
+    });
+    return copy;
+  }
+
+
   function render(){
-    const tasks = filteredTasks();
+    const tasks = filteredTasks("active");
+    const trashTasks = filteredTasks("trash");
 
     const buckets = {
       overdue: [],
@@ -318,6 +427,7 @@
     ui.badgeWeek.textContent = String(buckets.week.length);
     if(ui.badgeLater) ui.badgeLater.textContent = String(buckets.later.length);
     ui.badgeNoDate.textContent = String(buckets.nodate.length);
+    if(ui.badgeTrash) ui.badgeTrash.textContent = String(trashTasks.length);
 
     // Category filter (desktop)
     if(ui.categoryFilter){
@@ -371,6 +481,8 @@
     }
 
     // Active buttons
+    if(ui.searchClear) ui.searchClear.hidden = !(state.query && state.query.trim());
+
     document.querySelectorAll("[data-view]").forEach(btn => {
       const v = btn.getAttribute("data-view");
       btn.classList.toggle("is-active", v === state.view);
@@ -427,6 +539,8 @@
       if(buckets.nodate.length){
         ui.list.appendChild(infoBlock("ここから「今日にする」「明日にする」で期日を付けると運用が楽です。"));
       }
+    }else if(state.view === "trash"){
+      renderTrashView(trashTasks);
     }else if(state.view === "settings"){
       renderSettingsView(buckets);
     }
@@ -515,6 +629,57 @@
     ui.list.appendChild(sec);
   }
 
+  function renderTrashView(items){
+    const sec = document.createElement("div");
+    sec.className = "section";
+
+    const head = document.createElement("div");
+    head.className = "section__head";
+
+    const left = document.createElement("div");
+    left.className = "section__title";
+    left.textContent = "ゴミ箱";
+
+    const rightWrap = document.createElement("div");
+    rightWrap.style.display = "flex";
+    rightWrap.style.alignItems = "center";
+    rightWrap.style.gap = "8px";
+
+    const meta = document.createElement("div");
+    meta.className = "section__meta";
+    meta.textContent = `${items.length}件`;
+    rightWrap.appendChild(meta);
+
+    const emptyBtn = document.createElement("button");
+    emptyBtn.className = "smallbtn smallbtn--danger";
+    emptyBtn.type = "button";
+    emptyBtn.textContent = "空にする";
+    emptyBtn.title = "ゴミ箱を空にする（完全削除）";
+    emptyBtn.addEventListener("click", () => {
+      if(items.length === 0) return;
+      if(confirm("ゴミ箱を空にしますか？（戻せません）")){
+        emptyTrash();
+      }
+    });
+    rightWrap.appendChild(emptyBtn);
+
+    head.appendChild(left);
+    head.appendChild(rightWrap);
+    sec.appendChild(head);
+
+    if(items.length === 0){
+      sec.appendChild(emptyBlock("ゴミ箱は空です"));
+      sec.appendChild(infoBlock("削除したタスクはここに移動します。復元もできます。"));
+      ui.list.appendChild(sec);
+      return;
+    }
+
+    sec.appendChild(infoBlock("※「完全削除」「空にする」は元に戻せません。"));
+
+    sortTrash(items).forEach(t => sec.appendChild(taskRow(t)));
+    ui.list.appendChild(sec);
+  }
+
   function infoBlock(text){
     const d = document.createElement("div");
     d.style.margin = "12px 0";
@@ -548,14 +713,18 @@
       openDetailIfMobile();
     });
 
-    const c = classify(t);
+    const isTrashView = state.view === "trash";
+
+    const c = isTrashView ? null : classify(t);
     const chk = document.createElement("div");
-    chk.className = "chk" + (t.status === "done" ? " is-on" : "");
-    chk.title = "完了";
-    chk.addEventListener("click", (e) => {
-      e.stopPropagation();
-      updateTask(t.id, { status: (t.status === "done" ? "todo" : "done") });
-    });
+    chk.className = "chk" + (t.status === "done" ? " is-on" : "") + (isTrashView ? " chk--trash" : "");
+    chk.title = isTrashView ? "ゴミ箱" : "完了";
+    if(!isTrashView){
+      chk.addEventListener("click", (e) => {
+        e.stopPropagation();
+        updateTask(t.id, { status: (t.status === "done" ? "todo" : "done") });
+      });
+    }
 
     const sub = [];
     const due = t.dueDate ? `期日:${t.dueDate}` : "期日なし";
@@ -565,47 +734,80 @@
 
     const cat = (t.category || "").trim() ? `<span class="tag">${escapeHtml(t.category)}</span>` : `<span class="tag">INBOX</span>`;
     sub.push(cat);
-    if(c === "overdue") sub.push(`<span class="tag tag--danger">期限切れ</span>`);
-    if(c === "today") sub.push(`<span class="tag tag--amber">今日</span>`);
+
+    if(isTrashView){
+      sub.push(`<span class="tag tag--danger">${escapeHtml("削除:" + deletedAtLabel(t.deletedAt))}</span>`);
+    }else{
+      if(c === "overdue") sub.push(`<span class="tag tag--danger">期限切れ</span>`);
+      if(c === "today") sub.push(`<span class="tag tag--amber">今日</span>`);
+    }
 
     const right = document.createElement("div");
     right.className = "item__right";
 
-    const quickToday = document.createElement("button");
-    quickToday.className = "smallbtn";
-    quickToday.type = "button";
-    quickToday.textContent = "今日";
-    quickToday.title = "期日を今日にする";
-    quickToday.addEventListener("click", (e) => {
-      e.stopPropagation();
-      updateTask(t.id, { dueDate: toYmd(new Date()) });
-    });
+    if(isTrashView){
+      const restoreBtn = document.createElement("button");
+      restoreBtn.className = "smallbtn";
+      restoreBtn.type = "button";
+      restoreBtn.textContent = "復元";
+      restoreBtn.title = "復元";
+      restoreBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        restoreTask(t.id);
+        showToast("復元しました", "", null, 1800);
+      });
 
-    const quickTomorrow = document.createElement("button");
-    quickTomorrow.className = "smallbtn";
-    quickTomorrow.type = "button";
-    quickTomorrow.textContent = "明日";
-    quickTomorrow.title = "期日を明日にする";
-    quickTomorrow.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const d = startOfToday(); d.setDate(d.getDate()+1);
-      updateTask(t.id, { dueDate: toYmd(d) });
-    });
+      const purgeBtn = document.createElement("button");
+      purgeBtn.className = "smallbtn smallbtn--danger";
+      purgeBtn.type = "button";
+      purgeBtn.textContent = "削除";
+      purgeBtn.title = "完全削除（戻せません）";
+      purgeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if(confirm("完全削除しますか？（戻せません）")){
+          purgeTask(t.id);
+        }
+      });
 
-    const quickNoDate = document.createElement("button");
-    quickNoDate.className = "smallbtn";
-    quickNoDate.type = "button";
-    quickNoDate.textContent = "なし";
-    quickNoDate.title = "期日を外す";
-    quickNoDate.addEventListener("click", (e) => {
-      e.stopPropagation();
-      updateTask(t.id, { dueDate: "" });
-    });
+      right.appendChild(restoreBtn);
+      right.appendChild(purgeBtn);
+    }else{
+      const quickToday = document.createElement("button");
+      quickToday.className = "smallbtn";
+      quickToday.type = "button";
+      quickToday.textContent = "今日";
+      quickToday.title = "期日を今日にする";
+      quickToday.addEventListener("click", (e) => {
+        e.stopPropagation();
+        updateTask(t.id, { dueDate: toYmd(new Date()) });
+      });
 
-    // show quick buttons only where it makes sense
-    if(state.view === "nodate" || state.view === "settings") right.appendChild(quickToday);
-    if(state.view === "nodate" || state.view === "settings") right.appendChild(quickTomorrow);
-    if(state.view !== "nodate") right.appendChild(quickNoDate);
+      const quickTomorrow = document.createElement("button");
+      quickTomorrow.className = "smallbtn";
+      quickTomorrow.type = "button";
+      quickTomorrow.textContent = "明日";
+      quickTomorrow.title = "期日を明日にする";
+      quickTomorrow.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const d = startOfToday(); d.setDate(d.getDate()+1);
+        updateTask(t.id, { dueDate: toYmd(d) });
+      });
+
+      const quickNoDate = document.createElement("button");
+      quickNoDate.className = "smallbtn";
+      quickNoDate.type = "button";
+      quickNoDate.textContent = "なし";
+      quickNoDate.title = "期日を外す";
+      quickNoDate.addEventListener("click", (e) => {
+        e.stopPropagation();
+        updateTask(t.id, { dueDate: "" });
+      });
+
+      // show quick buttons only where it makes sense
+      if(state.view === "nodate" || state.view === "settings") right.appendChild(quickToday);
+      if(state.view === "nodate" || state.view === "settings") right.appendChild(quickTomorrow);
+      if(state.view !== "nodate") right.appendChild(quickNoDate);
+    }
 
     row.innerHTML = `
       <div></div>
@@ -653,27 +855,32 @@
 
   function detailFormHtml(t, compact=false){
     const cat = (t.category || "").trim();
+    const dis = t.deletedAt ? 'disabled="disabled"' : "";
     return `
       <div class="detail__head">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
           <div style="font-weight:900;font-size:${compact ? "16px":"18px"};">編集</div>
           ${compact ? `<button class="btn btn--ghost" type="button" data-action="closeSheet">閉じる</button>` : ""}
         </div>
+
       </div>
 
+      ${t.deletedAt ? `<div style="margin:10px 0;padding:10px 12px;border:1px solid rgba(239,68,68,.30);background: rgba(239,68,68,.08);border-radius:12px;color: var(--muted);font-size:12px;">※ゴミ箱内のタスクです。復元すると通常の一覧に戻ります。</div>` : ""}
+
       <div class="field">
+
         <div class="label">タイトル</div>
-        <input class="input" data-k="title" value="${escapeAttr(t.title)}" placeholder="タスク名" />
+        <input class="input" data-k="title" value="${escapeAttr(t.title)}" placeholder="タスク名" ${dis} />
       </div>
 
       <div class="row">
         <div class="field">
           <div class="label">期日（予定日）</div>
-          <input class="input" data-k="dueDate" type="date" value="${escapeAttr(t.dueDate)}" />
+          <input class="input" data-k="dueDate" type="date" value="${escapeAttr(t.dueDate)}" ${dis} />
         </div>
         <div class="field">
           <div class="label">優先度</div>
-          <select class="select" data-k="priority">
+          <select class="select" data-k="priority" ${dis}>
             <option value="high" ${t.priority==="high"?"selected":""}>高</option>
             <option value="mid" ${t.priority==="mid"?"selected":""}>中</option>
             <option value="low" ${t.priority==="low"?"selected":""}>低</option>
@@ -684,7 +891,7 @@
       <div class="row">
         <div class="field">
           <div class="label">状態</div>
-          <select class="select" data-k="status">
+          <select class="select" data-k="status" ${dis}>
             <option value="todo" ${t.status==="todo"?"selected":""}>未着手</option>
             <option value="doing" ${t.status==="doing"?"selected":""}>進行中</option>
             <option value="done" ${t.status==="done"?"selected":""}>完了</option>
@@ -692,39 +899,50 @@
         </div>
         <div class="field">
           <div class="label">カテゴリ（空ならINBOX）</div>
-          <input class="input" data-k="category" value="${escapeAttr(cat)}" list="categoryList" placeholder="例：DQ / 小説 / 日常" />
+          <input class="input" data-k="category" value="${escapeAttr(cat)}" list="categoryList" placeholder="例：DQ / 小説 / 日常" ${dis} />
           <datalist id="categoryList">
             <option value="INBOX"></option>
             ${state.categories.map(c => `<option value="${escapeHtml(c)}"></option>`).join("")}
           </datalist>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+          ${t.deletedAt ? "" : `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
             ${state.categories.map(c => `<button class="smallbtn" type="button" data-catpick="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("")}
             <button class="smallbtn" type="button" data-catpick="">INBOX</button>
-          </div>
+          </div>`}
         </div>
+
       </div>
 
+      ${t.deletedAt ? `<div style="margin:10px 0;padding:10px 12px;border:1px solid rgba(239,68,68,.30);background: rgba(239,68,68,.08);border-radius:12px;color: var(--muted);font-size:12px;">※ゴミ箱内のタスクです。復元すると通常の一覧に戻ります。</div>` : ""}
+
       <div class="field">
+
         <div class="label">作成日</div>
         <input class="input" value="${escapeAttr((t.createdAt||"").slice(0,10))}" disabled />
+
       </div>
 
+      ${t.deletedAt ? `<div style="margin:10px 0;padding:10px 12px;border:1px solid rgba(239,68,68,.30);background: rgba(239,68,68,.08);border-radius:12px;color: var(--muted);font-size:12px;">※ゴミ箱内のタスクです。復元すると通常の一覧に戻ります。</div>` : ""}
+
       <div class="field">
+
         <div class="label">メモ</div>
-        <textarea class="textarea" data-k="memo" placeholder="補足">${escapeHtml(t.memo || "")}</textarea>
+        <textarea class="textarea" data-k="memo" placeholder="補足" ${dis}>${escapeHtml(t.memo || "")}</textarea>
       </div>
 
       <div class="actions">
-        <button class="btn btn--primary" type="button" data-action="today">今日にする</button>
-        <button class="btn" type="button" data-action="tomorrow">明日にする</button>
-        <button class="btn" type="button" data-action="clearDue">期限なしへ</button>
-        <button class="btn" type="button" data-action="toggleDone">${t.status==="done" ? "未完了に戻す" : "完了にする"}</button>
+        <button class="btn btn--primary" type="button" data-action="today" ${dis}>今日にする</button>
+        <button class="btn" type="button" data-action="tomorrow" ${dis}>明日にする</button>
+        <button class="btn" type="button" data-action="clearDue" ${dis}>期限なしへ</button>
+        <button class="btn" type="button" data-action="toggleDone" ${dis}>${t.status==="done" ? "未完了に戻す" : "完了にする"}</button>
       </div>
 
       <div class="sep"></div>
 
       <div class="actions">
-        <button class="btn btn--danger" type="button" data-action="delete">削除</button>
+        ${t.deletedAt
+          ? `<button class="btn btn--primary" type="button" data-action="restore">復元</button>
+             <button class="btn btn--danger" type="button" data-action="purge">完全削除</button>`
+          : `<button class="btn btn--danger" type="button" data-action="trash">ゴミ箱へ</button>`}
       </div>
     `;
   }
@@ -761,8 +979,14 @@
           updateTask(t.id, { dueDate: "" });
         }else if(act === "toggleDone"){
           updateTask(t.id, { status: (t.status === "done" ? "todo" : "done") });
-        }else if(act === "delete"){
-          if(confirm("削除しますか？")) deleteTask(t.id);
+        }else if(act === "trash"){
+          deleteTask(t.id);
+          if(isSheet) closeSheet();
+        }else if(act === "restore"){
+          restoreTask(t.id);
+          if(isSheet) closeSheet();
+        }else if(act === "purge"){
+          if(confirm("完全削除しますか？（戻せません）")) purgeTask(t.id);
           if(isSheet) closeSheet();
         }else if(act === "closeSheet"){
           closeSheet();
@@ -1244,6 +1468,8 @@ $("#btnClearAll").addEventListener("click", () => {
   }
 
   function bindNav(){
+    if(ui.searchClear) ui.searchClear.hidden = !(state.query && state.query.trim());
+
     document.querySelectorAll("[data-view]").forEach(btn => {
       btn.addEventListener("click", () => {
         const v = btn.getAttribute("data-view");
@@ -1257,6 +1483,15 @@ $("#btnClearAll").addEventListener("click", () => {
       state.query = ui.search.value;
       render();
     });
+
+    if(ui.searchClear){
+      ui.searchClear.addEventListener("click", () => {
+        state.query = "";
+        ui.search.value = "";
+        ui.searchClear.hidden = true;
+        render();
+      });
+    }
 
     if(ui.categoryFilter){
       ui.categoryFilter.addEventListener("change", () => {
@@ -1394,8 +1629,53 @@ $("#btnClearAll").addEventListener("click", () => {
     bindTopbar();
 
     ui.sheetBackdrop.addEventListener("click", closeSheet);
+
+    const isTypingTarget = (el) => {
+      if(!el) return false;
+      const tag = (el.tagName || "").toLowerCase();
+      if(tag === "input" || tag === "textarea" || tag === "select") return true;
+      if(el.isContentEditable) return true;
+      return false;
+    };
+
     window.addEventListener("keydown", (e) => {
-      if(e.key === "Escape") closeSheet();
+      // Search focus: "/" or Ctrl+K
+      if(!isTypingTarget(e.target)){
+        if(e.key === "/"){
+          e.preventDefault();
+          ui.search && ui.search.focus();
+          return;
+        }
+        if((e.ctrlKey || e.metaKey) && (e.key || "").toLowerCase() === "k"){
+          e.preventDefault();
+          ui.search && ui.search.focus();
+          return;
+        }
+        // Undo from toast (Ctrl+Z)
+        if((e.ctrlKey || e.metaKey) && (e.key || "").toLowerCase() === "z"){
+          if(toastUndoFn){
+            e.preventDefault();
+            try{ toastUndoFn(); }finally{ hideToast(); }
+            return;
+          }
+        }
+      }
+
+      // Escape: close sheet, clear search, hide toast
+      if(e.key === "Escape"){
+        if(!ui.sheet.hidden) closeSheet();
+        if(state.query && state.query.trim()){
+          state.query = "";
+          if(ui.search){ ui.search.value = ""; }
+          if(ui.searchClear) ui.searchClear.hidden = true;
+          render();
+          return;
+        }
+        if(!ui.toast?.hidden){
+          hideToast();
+          return;
+        }
+      }
     });
 
     render();
