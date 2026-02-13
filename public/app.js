@@ -30,6 +30,8 @@
     query: "",
     tasks: [],
     selectedId: null,
+    calendarCursor: "",      // YYYY-MM
+    calendarSelected: "",    // YYYY-MM-DD
     weekMode: "sunday", // "sunday" or "7days"
     categories: ["その他","趣味","作業"],
     filterCategory: "all",
@@ -375,6 +377,37 @@
     return `${d.getMonth()+1}/${d.getDate()}(${w})`;
   }
 
+  function ymToLabel(ym){
+    if(!ym) return "";
+    const [y,m] = ym.split("-").map(Number);
+    if(!y || !m) return "";
+    return `${y}/${pad2(m)}`;
+  }
+
+  function ensureCalendarDefaults(){
+    const today = new Date();
+    if(!state.calendarCursor){
+      state.calendarCursor = `${today.getFullYear()}-${pad2(today.getMonth()+1)}`;
+    }
+    if(!state.calendarSelected){
+      state.calendarSelected = toYmd(today);
+    }
+  }
+
+  function shiftCalendarMonth(delta){
+    ensureCalendarDefaults();
+    const [y,m] = state.calendarCursor.split("-").map(Number);
+    const base = new Date(y, (m-1) + delta, 1, 12,0,0);
+    state.calendarCursor = `${base.getFullYear()}-${pad2(base.getMonth()+1)}`;
+
+    // keep day number if possible
+    const sel = parseYmd(state.calendarSelected);
+    const desiredDay = sel ? sel.getDate() : 1;
+    const lastDay = new Date(base.getFullYear(), base.getMonth()+1, 0).getDate();
+    const day = Math.min(desiredDay, lastDay);
+    state.calendarSelected = toYmd(new Date(base.getFullYear(), base.getMonth(), day, 12,0,0));
+  }
+
   function deletedAtLabel(ts){
     if(!ts) return "";
     const d = new Date(ts);
@@ -523,6 +556,8 @@
           renderSection(ymdToLabel(g.date), g.items, { meta: `${g.items.length}件`, collapsible:true, collapsed, key });
         });
       }
+    }else if(state.view === "calendar"){
+      renderCalendarView(tasks);
     }else if(state.view === "later"){
       const groups = groupWeek(buckets.later);
       if(groups.length === 0){
@@ -678,6 +713,266 @@
 
     sortTrash(items).forEach(t => sec.appendChild(taskRow(t)));
     ui.list.appendChild(sec);
+  }
+
+  function renderCalendarView(activeTasks){
+    ensureCalendarDefaults();
+
+    const today = startOfToday();
+    const todayYmd = toYmd(today);
+
+    // calendar focuses on not-done tasks with a due date
+    const tasks = (activeTasks || [])
+      .filter(t => t.status !== "done")
+      .filter(t => !!t.dueDate);
+
+    const map = new Map();
+    for(const t of tasks){
+      const k = t.dueDate;
+      if(!map.has(k)) map.set(k, []);
+      map.get(k).push(t);
+    }
+    for(const [k, arr] of map.entries()){
+      map.set(k, sortTasks(arr));
+    }
+
+    const [cy, cm] = state.calendarCursor.split("-").map(Number);
+    const monthFirst = new Date(cy, cm-1, 1, 12,0,0);
+    const gridStart = new Date(monthFirst);
+    gridStart.setDate(1 - gridStart.getDay()); // Sunday
+
+    // build 6 weeks (42 cells)
+    const days = [];
+    for(let i=0;i<42;i++){
+      const d = new Date(gridStart);
+      d.setDate(gridStart.getDate() + i);
+      days.push(d);
+    }
+
+    const wrap = document.createElement("div");
+
+    const cal = document.createElement("div");
+    cal.className = "cal";
+
+    const head = document.createElement("div");
+    head.className = "cal__head";
+
+    const title = document.createElement("div");
+    title.className = "cal__title";
+    title.textContent = `カレンダー（${ymToLabel(state.calendarCursor)}）`;
+
+    const nav = document.createElement("div");
+    nav.className = "cal__nav";
+
+    const prev = document.createElement("button");
+    prev.className = "btn";
+    prev.type = "button";
+    prev.textContent = "← 前月";
+    prev.addEventListener("click", () => {
+      shiftCalendarMonth(-1);
+      render();
+    });
+
+    const next = document.createElement("button");
+    next.className = "btn";
+    next.type = "button";
+    next.textContent = "次月 →";
+    next.addEventListener("click", () => {
+      shiftCalendarMonth(1);
+      render();
+    });
+
+    const goToday = document.createElement("button");
+    goToday.className = "btn btn--primary";
+    goToday.type = "button";
+    goToday.textContent = "今日";
+    goToday.addEventListener("click", () => {
+      const now = new Date();
+      state.calendarCursor = `${now.getFullYear()}-${pad2(now.getMonth()+1)}`;
+      state.calendarSelected = toYmd(now);
+      render();
+    });
+
+    const hint = document.createElement("div");
+    hint.className = "cal__hint";
+    hint.textContent = "ドラッグで期日変更OK";
+
+    nav.appendChild(prev);
+    nav.appendChild(goToday);
+    nav.appendChild(next);
+    nav.appendChild(hint);
+
+    head.appendChild(title);
+    head.appendChild(nav);
+    cal.appendChild(head);
+
+    const dow = document.createElement("div");
+    dow.className = "cal__dow";
+    ["日","月","火","水","木","金","土"].forEach(x => {
+      const d = document.createElement("div");
+      d.textContent = x;
+      dow.appendChild(d);
+    });
+    cal.appendChild(dow);
+
+    const grid = document.createElement("div");
+    grid.className = "cal__grid";
+
+    const selectedYmd = state.calendarSelected || todayYmd;
+
+    days.forEach(d => {
+      const ymd = toYmd(d);
+      const inMonth = (d.getMonth() === monthFirst.getMonth());
+      const items = map.get(ymd) || [];
+      const isOverdue = (ymd < todayYmd) && items.length > 0;
+
+      const cell = document.createElement("div");
+      cell.className = "calcell";
+      if(!inMonth) cell.classList.add("is-other");
+      if(ymd === todayYmd) cell.classList.add("is-today");
+      if(ymd === selectedYmd) cell.classList.add("is-selected");
+      if(isOverdue) cell.classList.add("is-overdue");
+      cell.setAttribute("data-ymd", ymd);
+
+      cell.addEventListener("click", () => {
+        state.calendarSelected = ymd;
+        // If clicking a day outside the current month, follow it
+        if(!inMonth){
+          state.calendarCursor = `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
+        }
+        render();
+      });
+
+      // Drop target for drag-and-drop due date change
+      cell.addEventListener("dragover", (e) => {
+        e.preventDefault();
+      });
+      cell.addEventListener("dragenter", (e) => {
+        e.preventDefault();
+        cell.classList.add("is-drop");
+      });
+      cell.addEventListener("dragleave", () => {
+        cell.classList.remove("is-drop");
+      });
+      cell.addEventListener("drop", (e) => {
+        e.preventDefault();
+        cell.classList.remove("is-drop");
+        const tid = e.dataTransfer && e.dataTransfer.getData("text/taskid");
+        if(!tid) return;
+        const prevYmd = e.dataTransfer && e.dataTransfer.getData("text/prevymd");
+        updateTask(tid, { dueDate: ymd });
+        state.calendarSelected = ymd;
+        showToast("期日を変更しました", "Undo", () => {
+          // undo = restore old date if provided
+          if(prevYmd !== null && prevYmd !== undefined) updateTask(tid, { dueDate: prevYmd || "" });
+        });
+      });
+
+      const top = document.createElement("div");
+      top.className = "calcell__top";
+
+      const dayNum = document.createElement("div");
+      dayNum.className = "calcell__day";
+      dayNum.textContent = String(d.getDate());
+
+      const count = document.createElement("div");
+      count.className = "calcell__count";
+      count.textContent = items.length ? `${items.length}件` : "";
+      count.style.visibility = items.length ? "visible" : "hidden";
+
+      top.appendChild(dayNum);
+      top.appendChild(count);
+
+      const chips = document.createElement("div");
+      chips.className = "calcell__chips";
+      items.slice(0,2).forEach(t => {
+        const chip = document.createElement("div");
+        chip.className = "calchip";
+        chip.draggable = true;
+        chip.title = "ドラッグして期日変更 / クリックで編集";
+        chip.addEventListener("dragstart", (e) => {
+          if(!e.dataTransfer) return;
+          e.dataTransfer.setData("text/taskid", t.id);
+          e.dataTransfer.setData("text/prevymd", t.dueDate || "");
+          e.dataTransfer.effectAllowed = "move";
+        });
+        chip.addEventListener("click", (e) => {
+          e.stopPropagation();
+          state.selectedId = t.id;
+          render();
+          openDetailIfMobile();
+        });
+
+        const dot = document.createElement("div");
+        dot.className = "calchip__dot";
+        const cls = classify(t);
+        if(cls === "overdue") dot.classList.add("is-danger");
+        if(cls === "today") dot.classList.add("is-amber");
+        chip.appendChild(dot);
+
+        const tt = document.createElement("div");
+        tt.className = "calchip__title";
+        tt.textContent = t.title || "(無題)";
+        chip.appendChild(tt);
+
+        chips.appendChild(chip);
+      });
+
+      cell.appendChild(top);
+      cell.appendChild(chips);
+      grid.appendChild(cell);
+    });
+
+    cal.appendChild(grid);
+
+    wrap.appendChild(cal);
+
+    // Selected day list
+    const dayWrap = document.createElement("div");
+    dayWrap.className = "calday";
+
+    const dayHead = document.createElement("div");
+    dayHead.className = "calday__head";
+
+    const dayTitle = document.createElement("div");
+    dayTitle.className = "calday__title";
+    dayTitle.textContent = `${ymdToLabel(state.calendarSelected)} のタスク`;
+
+    const dayActions = document.createElement("div");
+    dayActions.style.display = "flex";
+    dayActions.style.gap = "10px";
+    dayActions.style.flexWrap = "wrap";
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "btn btn--primary";
+    addBtn.type = "button";
+    addBtn.textContent = "この日に追加";
+    addBtn.addEventListener("click", () => {
+      addTask({ title: "", dueDate: state.calendarSelected });
+    });
+
+    dayActions.appendChild(addBtn);
+    dayHead.appendChild(dayTitle);
+    dayHead.appendChild(dayActions);
+    dayWrap.appendChild(dayHead);
+
+    const dayTasks = sortTasks(map.get(state.calendarSelected) || []);
+    if(dayTasks.length === 0){
+      dayWrap.appendChild(emptyBlock("この日に期日のタスクはありません"));
+      dayWrap.appendChild(infoBlock("ヒント：タスクをドラッグして日付へドロップすると、期日を移動できます。"));
+    }else{
+      const sec = document.createElement("div");
+      sec.className = "section";
+      const head2 = document.createElement("div");
+      head2.className = "section__head";
+      head2.innerHTML = `<div class="section__title">一覧</div><div class="section__meta">${dayTasks.length}件</div>`;
+      sec.appendChild(head2);
+      dayTasks.forEach(t => sec.appendChild(taskRow(t)));
+      dayWrap.appendChild(sec);
+    }
+
+    wrap.appendChild(dayWrap);
+    ui.list.appendChild(wrap);
   }
 
   function infoBlock(text){
@@ -1462,6 +1757,14 @@ $("#btnClearAll").addEventListener("click", () => {
   }
 
   function setView(v){
+    if(v === "calendar"){
+      ensureCalendarDefaults();
+      // keep cursor aligned to selected day when opening calendar
+      const sel = parseYmd(state.calendarSelected);
+      if(sel){
+        state.calendarCursor = `${sel.getFullYear()}-${pad2(sel.getMonth()+1)}`;
+      }
+    }
     state.view = v;
     render();
     closeSheet();

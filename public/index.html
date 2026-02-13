@@ -34,6 +34,9 @@
         <button class="navbtn" data-view="week">
           今週 <span class="badge" id="badgeWeek">0</span>
         </button>
+        <button class="navbtn" data-view="calendar">
+          カレンダー
+        </button>
         <button class="navbtn" data-view="later">
           あとで <span class="badge" id="badgeLater">0</span>
         </button>
@@ -67,11 +70,12 @@
     <nav class="bottomnav" aria-label="Mobile tabs">
       <button class="tab" data-view="today">今日</button>
       <button class="tab" data-view="week">今週</button>
+      <button class="tab" data-view="calendar">カレンダー</button>
       <button class="tab" data-view="later">あとで</button>
       <button class="tab tab--plus" id="plusTab" type="button">＋</button>
       <button class="tab" data-view="nodate">期限なし</button>
       <button class="tab" data-view="settings">設定</button>
-          <button class="tab" data-view="trash">ゴミ箱</button>
+      <button class="tab" data-view="trash">ゴミ箱</button>
     </nav>
 
     <!-- Mobile detail sheet -->
@@ -86,7 +90,7 @@
     <div id="toast" class="toast" hidden></div>
   </div>
 
-  <script src="./app.js"></script
+  <script src="./app.js"></script>
 
   <footer class="sitefooter">
     <div class="sitefooter__inner">
